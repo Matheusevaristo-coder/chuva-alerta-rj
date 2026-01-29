@@ -1,0 +1,47 @@
+/* --- index.css --- */
+
+:root {
+  /* Variáveis Globais de Cores */
+  --bg-color: #0f172a;       /* Fundo da página */
+  --card-bg: #1e293b;        /* Fundo dos cards */
+  --text-primary: #f8fafc;   /* Texto principal */
+  --text-secondary: #94a3b8; /* Texto secundário */
+  
+  /* Cores de Risco */
+  --risk-high: #ef4444;      /* Vermelho */
+  --risk-med: #f97316;       /* Laranja */
+  --risk-low: #22c55e;       /* Verde */
+}
+
+/* Reset Básico */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  width: 100%;
+  /* IMPORTANTE: Removemos o display:flex que centralizava tudo */
+}
+
+/* Scrollbar escura (opcional, fica bonito no Chrome/Edge) */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-color); 
+}
+::-webkit-scrollbar-thumb {
+  background: #334155; 
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569; 
+}

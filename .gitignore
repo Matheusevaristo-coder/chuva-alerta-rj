@@ -1,0 +1,14 @@
+# Ignorar arquivos do sistema
+.DS_Store
+Thumbs.db
+
+# Backend (Python)
+backend/venv/
+backend/__pycache__/
+backend/.env
+*.pyc
+
+# Frontend (Node/React)
+frontend/node_modules/
+frontend/dist/
+frontend/.env
