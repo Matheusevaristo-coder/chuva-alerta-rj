@@ -1,18 +1,22 @@
 import requests
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from sqlalchemy.orm import Session
 from .models import ClimaRegistro, NivelRiscoEnum
 from .bairros import BAIROS_RJ
 
 # --- CONFIGURAÇÃO ---
+#OPENWEATHERMAP
+API_KEY = "a6416bde751b5b3f2a07a7d31c5b26f3"
+
+# Configurações do Telegram
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 
-def enviar_alerta_telegram(bairro, nivel, chuva_agora, acum_passado, acum_futuro):
+def enviar_alerta_telegram(bairro, nivel, chuva_agora):
     """
-    Envia alerta detalhado com contexto de acumulados.
+    Envia alerta simplificado para o Telegram.
     """
     if not TOKEN or not TELEGRAM_CHAT_ID:
         return
@@ -27,10 +31,9 @@ def enviar_alerta_telegram(bairro, nivel, chuva_agora, acum_passado, acum_futuro
         f"{emoji} *ALERTA EVARISTO SOLUTIONS* {emoji}\n\n"
         f"📍 *Bairro:* {bairro}\n"
         f"📢 *Risco:* {nivel.upper()}\n\n"
-        f"💧 *Agora:* {chuva_agora:.1f} mm\n"
-        f"⏪ *Acumulado (6h):* {acum_passado:.1f} mm\n"
-        f"⏩ *Previsão (3h):* {acum_futuro:.1f} mm\n\n"
-        f"🕒 {datetime.now().strftime('%H:%M')} - _Monitore via Painel_"
+        f"💧 *Chuva (1h):* {chuva_agora:.1f} mm\n"
+        f"💨 *Vento:* monitorado\n\n"
+        f"🕒 {datetime.now().strftime('%H:%M')} - _Fonte: OpenWeather_"
     )
 
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
@@ -43,27 +46,18 @@ def enviar_alerta_telegram(bairro, nivel, chuva_agora, acum_passado, acum_futuro
         print(f"❌ [Telegram] Erro: {e}")
 
 
-def calcular_nivel_risco(chuva_agora, acum_passado, acum_futuro) -> NivelRiscoEnum:
+def calcular_nivel_risco_owm(chuva_1h) -> NivelRiscoEnum:
     """
-    Define o risco baseado na chuva atual + saturação do solo (passado) + ameaça (futuro).
+    Define o risco baseado na chuva da última hora (OpenWeatherMap).
     """
-    chuva_agora = chuva_agora or 0
-    acum_passado = acum_passado or 0
-    acum_futuro = acum_futuro or 0
+    chuva_1h = chuva_1h or 0.0
 
-    # REGRA 1: Tempestade Imediata (Chuva torrencial agora)
-    if chuva_agora >= 15:
+    # REGRA 1: Chuva Forte (> 15mm/h já é alerta forte em área urbana)
+    if chuva_1h >= 15:
         return NivelRiscoEnum.alto
 
-    # REGRA 2: Perigo de Deslizamento (Solo cheio + vai chover mais)
-    # Ex: Já choveu 30mm e vem mais 10mm por aí
-    total_risco = acum_passado + acum_futuro
-
-    if total_risco >= 40:
-        return NivelRiscoEnum.alto
-
-    # REGRA 3: Atenção/Médio
-    if chuva_agora >= 5 or total_risco >= 20:
+    # REGRA 2: Chuva Moderada/Atenção
+    if chuva_1h >= 5:
         return NivelRiscoEnum.medio
 
     return NivelRiscoEnum.baixo
@@ -72,72 +66,57 @@ def calcular_nivel_risco(chuva_agora, acum_passado, acum_futuro) -> NivelRiscoEn
 def atualizar_clima(bairro: str, db: Session) -> ClimaRegistro:
     coords = BAIROS_RJ.get(bairro)
     if not coords:
-        raise ValueError(f"Bairro não cadastrado")
+        print(f"Bairro {bairro} não encontrado.")
+        return None
 
-    # URL MODIFICADA: Adicionamos &past_days=1 para pegar as últimas horas
-    url = (
-        "https://api.open-meteo.com/v1/forecast"
-        f"?latitude={coords['latitude']}&longitude={coords['longitude']}"
-        "&current=rain,precipitation,wind_speed_10m"
-        "&hourly=rain"
-        "&forecast_days=1"
-        "&past_days=1"  # <--- IMPORTANTE: Pede dados do passado
-        "&timezone=America%2FSao_Paulo"
-    )
+    # URL DA OPENWEATHERMAP (Plano Grátis / Current Weather)
+    url = "https://api.openweathermap.org/data/2.5/weather"
+
+    params = {
+        "lat": coords["latitude"],
+        "lon": coords["longitude"],
+        "appid": API_KEY,
+        "units": "metric",
+        "lang": "pt_br"
+    }
 
     try:
-        resp = requests.get(url, timeout=10)
+        resp = requests.get(url, params=params, timeout=10)
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:
-        print(f"Erro API: {e}")
+        print(f"❌ Erro API OpenWeather ({bairro}): {e}")
         return None
 
-    # 1. DADOS ATUAIS
-    current = data.get("current", {})
-    chuva_atual = current.get("rain", 0.0)
+    # --- EXTRAÇÃO DE DADOS (OpenWeatherMap) ---
 
-    hora_str = current.get("time")
-    horario_registro = datetime.fromisoformat(hora_str) if hora_str else datetime.now()
+    # 1. Chuva (Campo 'rain' -> '1h'). Se não estiver chovendo, o campo nem vem.
+    chuva_obj = data.get("rain", {})
+    chuva_atual = chuva_obj.get("1h", 0.0)
 
-    # 2. CALCULAR ACUMULADOS (Passado e Futuro) usando o array 'hourly'
-    hourly = data.get("hourly", {})
-    times = hourly.get("time", [])
-    rains = hourly.get("rain", [])
+    # 2. Vento (Vem em m/s, convertemos para km/h)
+    vento_ms = data.get("wind", {}).get("speed", 0.0)
+    vento_kmh = vento_ms * 3.6
 
-    # Descobre o índice da hora atual dentro do array gigante que a API devolveu
-    hora_atual_iso = horario_registro.strftime("%Y-%m-%dT%H:00")
+    # 3. Data/Hora
+    horario_registro = datetime.now()
 
-    try:
-        idx_now = times.index(hora_atual_iso)
-    except ValueError:
-        # Fallback: usa 24h (meio do array) se não achar exato
-        idx_now = 24
+    # 4. Acumulados (Como a API Grátis não dá histórico, zeramos para não quebrar o banco)
+    acum_passado_6h = 0.0
+    acum_futuro_3h = 0.0
 
-    # Soma as 6 horas ANTERIORES (Saturação)
-    acum_passado_6h = 0
-    start_past = max(0, idx_now - 6)
-    for i in range(start_past, idx_now):
-        acum_passado_6h += (rains[i] or 0)
+    # 5. Risco
+    nivel_risco = calcular_nivel_risco_owm(chuva_atual)
 
-    # Soma as 3 horas FUTURAS (Previsão)
-    acum_futuro_3h = 0
-    end_future = min(len(rains), idx_now + 1 + 3)
-    for i in range(idx_now + 1, end_future):
-        acum_futuro_3h += (rains[i] or 0)
-
-    # 3. DEFINE RISCO
-    nivel_risco = calcular_nivel_risco(chuva_atual, acum_passado_6h, acum_futuro_3h)
-
-    # Cria o registro (COM A NOVA COLUNA INCLUÍDA)
+    # Cria o registro no Banco
     registro = ClimaRegistro(
         bairro=bairro,
         horario_registro=horario_registro,
         chuva_mm=chuva_atual,
-        precipitacao=current.get("precipitation", 0.0),
-        vento_velocidade=current.get("wind_speed_10m", 0.0),
+        precipitacao=chuva_atual,  # OWM usa o mesmo dado
+        vento_velocidade=vento_kmh,
         chuva_acum_3h_prox=acum_futuro_3h,
-        chuva_acum_6h_ant=acum_passado_6h,  # <--- AQUI ESTÁ A NOVIDADE
+        chuva_acum_6h_ant=acum_passado_6h,
         nivel_risco=nivel_risco,
     )
 
@@ -145,8 +124,11 @@ def atualizar_clima(bairro: str, db: Session) -> ClimaRegistro:
     db.commit()
     db.refresh(registro)
 
+    print(f"✅ {bairro}: {chuva_atual}mm (Risco: {nivel_risco.value})")
+
+    # Tenta enviar Telegram se for perigoso
     try:
-        enviar_alerta_telegram(bairro, nivel_risco.value, chuva_atual, acum_passado_6h, acum_futuro_3h)
+        enviar_alerta_telegram(bairro, nivel_risco.value, chuva_atual)
     except Exception as e:
         print(f"Erro Telegram: {e}")
 
@@ -154,4 +136,5 @@ def atualizar_clima(bairro: str, db: Session) -> ClimaRegistro:
 
 
 def atualizar_clima_acari(db: Session) -> ClimaRegistro:
+    # Função legada, apenas redireciona
     return atualizar_clima("Acari", db)

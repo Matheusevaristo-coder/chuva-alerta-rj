@@ -1,107 +1,90 @@
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
-// --- Correção para os ícones do Leaflet não sumirem no React ---
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+// Coordenadas fixas dos bairros (Garante que o mapa funciona sem o backend mandar lat/lon)
+const COORDENADAS = {
+    "Acari": [-22.8256, -43.3396],
+    "Campo Grande": [-22.9035, -43.5592],
+    "Bonsucesso": [-22.8617, -43.2536],
+    "Botafogo": [-22.9511, -43.1805],
+    "Guadalupe": [-22.8406, -43.3756]
+};
 
-let DefaultIcon = L.icon({
-    iconUrl: icon,
-    shadowUrl: iconShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41]
-});
-L.Marker.prototype.options.icon = DefaultIcon;
-// -------------------------------------------------------------
-
-// Função para criar a "Bolinha Colorida" no mapa
 const getIconePorRisco = (risco) => {
-    let cor = '#22c55e'; // Verde (Normal)
-    
-    if (risco === 'medio') cor = '#f97316'; // Laranja
-    if (risco === 'alto') cor = '#ef4444'; // Vermelho
-    if (!risco) cor = '#94a3b8'; // Cinza (Sem dados)
+    let cor = '#22c55e'; // Verde
+    let animacao = 'none';
+    let tamanho = 18;
+
+    if (risco === 'medio') {
+        cor = '#f97316'; // Laranja
+        tamanho = 22;
+    }
+    if (risco === 'alto') {
+        cor = '#ef4444'; // Vermelho
+        tamanho = 22;
+        animacao = 'pulse-red 2s infinite'; // Usa a animação que criamos no CSS
+    }
 
     return L.divIcon({
         className: 'custom-pin',
         html: `<div style="
             background-color: ${cor};
-            width: 24px;
-            height: 24px;
+            width: ${tamanho}px;
+            height: ${tamanho}px;
             border-radius: 50%;
             border: 3px solid white;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
-            animation: ${risco === 'alto' ? 'pulse 1.5s infinite' : 'none'};
+            box-shadow: 0 0 10px ${cor};
+            animation: ${animacao};
         "></div>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12], // Centraliza o ícone
-        popupAnchor: [0, -12]
+        iconSize: [tamanho, tamanho],
+        iconAnchor: [tamanho / 2, tamanho / 2],
+        popupAnchor: [0, -10]
     });
 };
 
 const Mapa = ({ dados }) => {
-    // Centraliza o mapa numa média aproximada dos bairros do RJ
-    const centroRJ = [-22.88, -43.30]; 
+    // Centraliza no Rio de Janeiro
+    const centroRJ = [-22.88, -43.35]; 
 
     return (
-        <div style={{ height: '400px', width: '100%', borderRadius: '16px', overflow: 'hidden', border: '1px solid #334155', marginTop: '20px' }}>
-            <MapContainer center={centroRJ} zoom={11} scrollWheelZoom={false} style={{ height: '100%', width: '100%' }}>
-                {/* Mapa base escuro (CartoDB Dark Matter) */}
-                <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                    url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                />
+        <MapContainer 
+            center={centroRJ} 
+            zoom={11} 
+            style={{ height: '400px', width: '100%', borderRadius: '16px', zIndex: 0 }}
+            scrollWheelZoom={false}
+        >
+            {/* Mapa Dark (Combina com Glassmorphism) */}
+            <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            />
 
-                {/* Gera os pinos para cada bairro */}
-                {Object.keys(dados).map((bairro) => {
-                    const info = dados[bairro];
-                    
-                    // Se a API não mandou lat/lon, não desenha
-                    if (!info.lat || !info.lon) return null;
+            {Object.keys(COORDENADAS).map((bairro) => {
+                const latLong = COORDENADAS[bairro];
+                const info = dados[bairro] || {};
+                const risco = info.nivel_risco || 'baixo';
 
-                    return (
-                        <Marker 
-                            key={bairro} 
-                            position={[info.lat, info.lon]}
-                            icon={getIconePorRisco(info.nivel_risco)}
-                        >
-                            <Popup className="custom-popup">
-                                <div style={{textAlign: 'center'}}>
-                                    <strong style={{fontSize: '14px', color: '#0f172a'}}>{bairro}</strong>
-                                    <br />
-                                    {info.erro ? (
-                                        <span style={{color: '#64748b'}}>Sem sinal</span>
-                                    ) : (
-                                        <>
-                                            <span style={{color: '#334155'}}>Chuva: <b>{info.chuva_mm}mm</b></span>
-                                            <br/>
-                                            <span style={{
-                                                color: info.nivel_risco === 'alto' ? '#dc2626' : '#16a34a',
-                                                fontWeight: 'bold',
-                                                textTransform: 'uppercase',
-                                                fontSize: '10px'
-                                            }}>
-                                                {info.nivel_risco}
-                                            </span>
-                                        </>
-                                    )}
-                                </div>
-                            </Popup>
-                        </Marker>
-                    );
-                })}
-            </MapContainer>
-            
-            {/* CSS inline para animação de pulso no risco alto */}
-            <style>{`
-                @keyframes pulse {
-                    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-                    70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-                    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-                }
-            `}</style>
-        </div>
+                return (
+                    <Marker 
+                        key={bairro} 
+                        position={latLong}
+                        icon={getIconePorRisco(risco)}
+                    >
+                        <Popup>
+                            <div style={{ textAlign: 'center', color: '#1e293b' }}>
+                                <strong>{bairro}</strong><br/>
+                                <span style={{ fontSize: '0.9em', textTransform: 'uppercase', fontWeight: 'bold' }}>
+                                    {risco}
+                                </span>
+                                <br/>
+                                Chuva: {info.chuva_mm?.toFixed(1) || 0} mm
+                            </div>
+                        </Popup>
+                    </Marker>
+                );
+            })}
+        </MapContainer>
     );
 };
 
