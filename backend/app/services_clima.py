@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 from sqlalchemy.orm import Session
 from .models import ClimaRegistro, NivelRiscoEnum
-from .bairros import BAIROS_RJ
+from .bairros import BAIRROS_RJ
 
 # --- CONFIGURAÇÃO ---
 #OPENWEATHERMAP
@@ -64,7 +64,7 @@ def calcular_nivel_risco_owm(chuva_1h) -> NivelRiscoEnum:
 
 
 def atualizar_clima(bairro: str, db: Session) -> ClimaRegistro:
-    coords = BAIROS_RJ.get(bairro)
+    coords = BAIRROS_RJ.get(bairro)
     if not coords:
         print(f"Bairro {bairro} não encontrado.")
         return None

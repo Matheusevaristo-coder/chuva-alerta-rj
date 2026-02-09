@@ -9,13 +9,23 @@ import {
   Clock,
   MapPin,
   BarChart3,
-  History // <--- 1. NOVO IMPORT AQUI
+  History 
 } from "lucide-react";
 import Grafico from "./Grafico"; 
 import Mapa from "./Mapa"; 
 import "./App.css";
 
-const BAIRROS = ["Acari", "Campo Grande", "Bonsucesso", "Botafogo", "Guadalupe"];
+// ✅ ATUALIZADO: Adicionei as novas cidades aqui.
+// O nome tem que ser IDÊNTICO ao do Python ("São João de Meriti" com acentos e espaços).
+const BAIRROS = [
+  "Acari", 
+  "Campo Grande", 
+  "Bonsucesso", 
+  "Botafogo", 
+  "Guadalupe",
+  "São João de Meriti",
+  "Itaperuna"
+];
 
 function App() {
   const [dadosPorBairro, setDadosPorBairro] = useState({});
@@ -26,7 +36,6 @@ function App() {
   useEffect(() => {
     const fetchClima = async () => {
       try {
-        // OBS: Confirme se sua porta é 8001 mesmo, o padrão do FastAPI costuma ser 8000
         const resp = await fetch("http://127.0.0.1:8000/clima/atual"); 
         const json = await resp.json();
         setDadosPorBairro(json || {});
@@ -157,15 +166,13 @@ function App() {
                     <strong>{dados.vento_velocidade?.toFixed(0)} <small>km/h</small></strong>
                   </div>
 
-                  {/* --- BLOCO NOVO: ACUMULADO PASSADO --- */}
                   <div className="metrica-item">
                     <div className="metrica-label">
-                      <History size={18} color="#fbbf24" /> {/* Cor amarela/âmbar */}
+                      <History size={18} color="#fbbf24" />
                       <span>Acum. 6h</span>
                     </div>
                     <strong>{dados.chuva_acum_6h_ant?.toFixed(1) || '0.0'} <small>mm</small></strong>
                   </div>
-                  {/* ------------------------------------- */}
 
                   <div className="metrica-item">
                     <div className="metrica-label">

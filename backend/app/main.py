@@ -7,7 +7,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from .database import get_db, SessionLocal
 from .models import ClimaRegistro
 from .services_clima import atualizar_clima_acari, atualizar_clima
-from .bairros import BAIROS_RJ
+from .bairros import BAIRROS_RJ
 
 # -------------------------------------------------------------------
 # CONFIGURAÇÃO DO AGENDADOR (SCHEDULER)
@@ -21,7 +21,7 @@ def job_atualizar_todos_bairros():
     print("🔄 [JOB] Iniciando varredura de atualização...")
     db = SessionLocal()
     try:
-        for bairro in BAIROS_RJ.keys():
+        for bairro in BAIRROS_RJ.keys():
             try:
                 atualizar_clima(bairro, db)
                 print(f"   ✅ [JOB] {bairro} atualizado.")
@@ -96,7 +96,7 @@ def clima_atual(db: Session = Depends(get_db)):
     resultado = {}
 
     # Vamos percorrer a lista de bairros que tem coordenadas
-    for bairro, coords in BAIROS_RJ.items():
+    for bairro, coords in BAIRROS_RJ.items():
         # 1. Busca o clima no Banco de Dados
         ultimo = (
             db.query(ClimaRegistro)

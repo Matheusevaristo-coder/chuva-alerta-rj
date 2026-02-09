@@ -2,13 +2,15 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Coordenadas fixas dos bairros (Garante que o mapa funciona sem o backend mandar lat/lon)
+// ✅ ATUALIZADO: Lista completa com as novas cidades
 const COORDENADAS = {
     "Acari": [-22.8256, -43.3396],
     "Campo Grande": [-22.9035, -43.5592],
     "Bonsucesso": [-22.8617, -43.2536],
     "Botafogo": [-22.9511, -43.1805],
-    "Guadalupe": [-22.8406, -43.3756]
+    "Guadalupe": [-22.8406, -43.3756],
+    "São João de Meriti": [-22.8039, -43.3417], // Novo
+    "Itaperuna": [-21.2078, -41.8931]           // Novo
 };
 
 const getIconePorRisco = (risco) => {
@@ -23,7 +25,7 @@ const getIconePorRisco = (risco) => {
     if (risco === 'alto') {
         cor = '#ef4444'; // Vermelho
         tamanho = 22;
-        animacao = 'pulse-red 2s infinite'; // Usa a animação que criamos no CSS
+        animacao = 'pulse-red 2s infinite'; 
     }
 
     return L.divIcon({
@@ -44,17 +46,17 @@ const getIconePorRisco = (risco) => {
 };
 
 const Mapa = ({ dados }) => {
-    // Centraliza no Rio de Janeiro
-    const centroRJ = [-22.88, -43.35]; 
+    // ✅ ZOOM E CENTRO AJUSTADOS
+    // Centraliza no meio do estado para pegar Itaperuna e Rio na mesma tela
+    const centroRJ = [-22.0, -42.5]; 
 
     return (
         <MapContainer 
             center={centroRJ} 
-            zoom={11} 
+            zoom={8} // Zoom mais aberto (era 11)
             style={{ height: '400px', width: '100%', borderRadius: '16px', zIndex: 0 }}
-            scrollWheelZoom={false}
+            scrollWheelZoom={true} // Habilitei o zoom no scroll do mouse
         >
-            {/* Mapa Dark (Combina com Glassmorphism) */}
             <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                 url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"

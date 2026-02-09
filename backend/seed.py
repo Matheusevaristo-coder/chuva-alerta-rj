@@ -1,41 +1,54 @@
 import random
-from datetime import datetime, timedelta
-from app.database import SessionLocal, engine, Base
+from datetime import datetime
+from app.database import SessionLocal
 from app.models import ClimaRegistro, NivelRiscoEnum
+from app.services_clima import enviar_alerta_telegram
 
-# Cria as tabelas se não existirem
-Base.metadata.create_all(bind=engine)
+# Lista dos bairros do seu sistema
+BAIRROS = ["Acari", "Campo Grande", "Bonsucesso", "Botafogo", "Guadalupe"]
 
-db = SessionLocal()
 
-print("🌱 Plantando dados falsos para teste...")
+def simular_caos():
+    db = SessionLocal()
+    print("🚨 INICIANDO SIMULAÇÃO DE ESTADO CRÍTICO 🚨")
+    print("-------------------------------------------")
 
-bairro_teste = "Guadalupe"
-agora = datetime.now()
+    try:
+        for bairro in BAIRROS:
+            # Simula uma chuva torrencial (entre 60mm e 120mm)
+            chuva_fake = random.uniform(60.0, 120.0)
+            vento_fake = random.uniform(50.0, 90.0)  # Vento forte
 
-# Gera 1 dado a cada 10 minutos nas últimas 6 horas
-for i in range(36):
-    tempo_atras = agora - timedelta(minutes=i * 10)
+            registro = ClimaRegistro(
+                bairro=bairro,
+                horario_registro=datetime.now(),
+                chuva_mm=round(chuva_fake, 1),
+                precipitacao=round(chuva_fake, 1),
+                vento_velocidade=round(vento_fake, 1),
+                chuva_acum_3h_prox=round(random.uniform(20, 40), 1),  # Previsão de mais chuva
+                chuva_acum_6h_ant=round(random.uniform(30, 50), 1),  # Solo já encharcado
+                nivel_risco=NivelRiscoEnum.alto  # FORÇA O RISCO ALTO
+            )
 
-    # Simula uma chuva que aumenta e diminui
-    chuva_fake = max(0, 15 - abs(18 - i)) + random.uniform(0, 2)
+            db.add(registro)
+            db.commit()
 
-    nivel = "baixo"
-    if chuva_fake > 10: nivel = "medio"
-    if chuva_fake > 20: nivel = "alto"
+            print(f"🔥 {bairro}: {registro.chuva_mm}mm | Vento: {registro.vento_velocidade}km/h | STATUS: CRÍTICO")
 
-    registro = ClimaRegistro(
-        bairro=bairro_teste,
-        horario_registro=tempo_atras,
-        chuva_mm=round(chuva_fake, 1),
-        precipitacao=round(chuva_fake, 1),
-        vento_velocidade=random.uniform(5, 15),
-        chuva_acum_3h_prox=0,
-        chuva_acum_6h_ant=0,
-        nivel_risco=NivelRiscoEnum(nivel)
-    )
-    db.add(registro)
+            # Tenta disparar o Telegram para testar o bot também
+            try:
+                enviar_alerta_telegram(bairro, "alto", chuva_fake)
+            except Exception as e:
+                print(f"   (Erro ao enviar Telegram: {e})")
 
-db.commit()
-print(f"✅ Sucesso! 36 registros falsos criados para {bairro_teste}.")
-print("🔄 Atualize o site e clique em 'Ver Tendência' em Guadalupe.")
+        print("-------------------------------------------")
+        print("✅ Simulação concluída! Olhe o painel agora.")
+
+    except Exception as e:
+        print(f"❌ Erro na simulação: {e}")
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    simular_caos()
